@@ -8,13 +8,13 @@ A list of sections in the README.
 
 ## Setup
 
-This project uses the Weather API to fetch historic weather data. To run this project, you will need to obtain your own API key from the Weather API.
+This project uses the Weather API to fetch historic weather data. To re-run the data collectio portion of this project, you will need to obtain your own API key from the Weather API. Note that it can take a couple of hours before your API key is activated. 
 
 ### Steps:
 
 1. Visit the [Weather API website](https://www.weatherapi.com/) and sign up for a free account to get your API key.
 
-2. Create a new file in the project root directory named `config.py`.
+2. Create a new file in the `scripts` directory named `config.py`.
 
 3. Open the `config.py` file and add the following line:
 

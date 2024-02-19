@@ -5,16 +5,12 @@ The script includes functions to construct URLs for the Ergast API, send GET req
 The BASE_URL constant is the base URL for the Ergast API, and the CURRENT_YEAR constant is the current year. 
 The pandas library is used to store and manipulate the fetched data.
 """
-
-import datetime
-import logging
+from config import CURRENT_YEAR
 import pandas as pd
 import requests
 import sys
 
-
 BASE_URL = "http://ergast.com/api/f1"
-CURRENT_YEAR = int(datetime.datetime.now().year) 
 
 # === API functions ===
 
