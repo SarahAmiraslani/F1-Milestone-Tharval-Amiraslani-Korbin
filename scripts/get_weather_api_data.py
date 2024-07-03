@@ -1,5 +1,5 @@
 from config import WEATHER_API_KEY
-from format_data import format_race_data
+from scripts.utilities import format_race_data
 import requests
 import sys
 import pandas as pd
@@ -76,7 +76,7 @@ def fetch_historic_weather(url) -> dict:
 
     race_info_path = "data/raw/Race_Information_1995_2023.csv"
     race_df = format_race_data(pd.read_csv(race_info_path))
-    
+
     for _, row in race_df.iterrows():
         date = row['date']
         lat = row['lat']
@@ -91,8 +91,3 @@ def fetch_historic_weather(url) -> dict:
             # TODO: save the results
         else:
             print(f"Failed to fetch data for {date}, location: ({lat},{long})")
-
-
-
-
-
