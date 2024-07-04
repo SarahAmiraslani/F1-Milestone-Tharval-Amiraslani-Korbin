@@ -1,6 +1,6 @@
-import pandas as pd
 from ast import literal_eval
 import logging
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(
@@ -69,9 +69,7 @@ def safe_literal_eval(val: str) -> dict:
         dict: Evaluated dictionary or an empty dictionary if evaluation fails.
     """
     try:
-        if isinstance(val, str):
-            return literal_eval(val)
-        return val
+        return literal_eval(val) if isinstance(val, str) else val
     except (ValueError, SyntaxError) as e:
         logging.error(f"Error evaluating literal for value: {val} - {e}")
         return {}
@@ -94,17 +92,15 @@ def expand_json_cols(df: pd.DataFrame, json_cols: list) -> pd.DataFrame:
     other_cols = df.drop(columns=json_cols)
 
     for col in json_cols:
-        logging.info(f"Expanding column: {col}")
+        logging.info("Expanding column: %s", col)
         try:
-            expanded_cols = (
-                df[col].apply(lambda x: safe_literal_eval(x)).apply(pd.Series)
-            )
+            expanded_cols = df[col].apply(safe_literal_eval).apply(pd.Series)
             expanded_cols.columns = [
                 f"{col}_{sub_col}" for sub_col in expanded_cols.columns
             ]
             other_cols = pd.concat([other_cols, expanded_cols], axis=1)
         except Exception as e:
-            logging.error(f"Error expanding column {col}: {e}")
-            raise ValueError(f"Error expanding column {col}: {e}")
+            logging.error("Error expanding column %s: %s", col, e)
+            raise ValueError(f"Error expanding column {col}: {e}") from e
 
     return other_cols

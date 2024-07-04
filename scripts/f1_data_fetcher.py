@@ -16,6 +16,14 @@ import nest_asyncio
 import pandas as pd
 import requests
 import requests_cache
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError,
+)
+
 
 # === Config ===
 
@@ -35,6 +43,15 @@ nest_asyncio.apply()
 requests_cache.install_cache(
     "../data/cache/race_results_cache", backend="sqlite", expire_after=86400
 )  # cache expires in 1 day
+
+
+class ServerUnavailableError(Exception):
+    pass
+
+
+class ServerDisconnectedError(Exception):
+    pass
+
 
 # === Helper Functions ===
 
@@ -86,11 +103,11 @@ def parse_race_data(race: Dict) -> Dict:
     }
 
 
-def fetch_all_race_data(
+def fetch_race_info(
     start_year: int = 1995, end_year: int = CURRENT_YEAR
 ) -> pd.DataFrame:
     """
-    Fetch all race data from the API for a range of years and return it as a Pandas DataFrame.
+    Fetch race information from the API for a range of years and return it as a Pandas DataFrame.
 
     Args:
         start_year (int): The starting year for fetching race data. Defaults to 1995.
@@ -109,7 +126,12 @@ def fetch_all_race_data(
     return pd.DataFrame(all_races)
 
 
-async def fetch_single_race(
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=30),
+    retry=retry_if_exception_type((ServerUnavailableError, ServerDisconnectedError)),
+)
+async def fetch_single_race_results(
     session: aiohttp.ClientSession, season: int, round_num: int
 ) -> pd.DataFrame:
     """
@@ -127,6 +149,10 @@ async def fetch_single_race(
     logging.info("Fetching race data for Season: %s, Round: %s", season, round_num)
     try:
         async with session.get(race_url) as response:
+            if response.status == 503:
+                raise ServerUnavailableError(
+                    f"Service unavailable for {season} Round {round_num}"
+                )
             response.raise_for_status()
             race_data = await response.json()
             races = race_data["MRData"]["RaceTable"]["Races"]
@@ -135,17 +161,21 @@ async def fetch_single_race(
             race_results = races[0]["Results"]
             return pd.DataFrame(race_results)
     except aiohttp.ClientError as e:
+        if isinstance(e, aiohttp.ServerDisconnectedError):
+            raise ServerDisconnectedError(
+                f"Server disconnected for {season} Round {round_num}"
+            )
         logging.error(
             "Failed to fetch race data for Season %s, Round %s: %s",
             season,
             round_num,
             e,
         )
-        return pd.DataFrame()
+        raise
 
 
-async def fetch_all_races_async(
-    start_year: int = 1995, end_year: int = CURRENT_YEAR
+async def fetch_race_results(
+    start_year: int = 1995, end_year: int = CURRENT_YEAR, batch_size: int = 10
 ) -> pd.DataFrame:
     """
     Fetch race data asynchronously for a range of years and rounds, combining the results into a single Pandas DataFrame.
@@ -153,19 +183,29 @@ async def fetch_all_races_async(
     Args:
         start_year (int): The starting year for fetching race data. Defaults to 1995.
         end_year (int): The ending year for fetching race data. Defaults to the current year.
+        batch_size (int): Number of requests to process concurrently. Defaults to 10.
 
     Returns:
         pd.DataFrame: DataFrame containing all the fetched race data.
     """
     async with aiohttp.ClientSession() as session:
-        tasks = [
-            fetch_single_race(session, year, round_num)
-            for year in range(start_year, end_year + 1)
-            # Assuming a maximum of 20 rounds per season
-            for round_num in range(1, 21)
-        ]
-        race_data = await asyncio.gather(*tasks)
-    return pd.concat(race_data, ignore_index=True)
+        all_results = []
+        for year in range(start_year, end_year + 1):
+            for round_num in range(1, 21):  # Assuming a maximum of 20 rounds per season
+                try:
+                    result = await fetch_single_race_results(session, year, round_num)
+                    all_results.append(result)
+                    if len(all_results) % batch_size == 0:
+                        # Throttling: wait between batches to avoid server overload
+                        await asyncio.sleep(5)
+                except RetryError as e:
+                    logging.error(
+                        "Retries failed for Season %s, Round %s: %s", year, round_num, e
+                    )
+
+    if all_results:
+        return pd.concat(all_results, ignore_index=True)
+    return pd.DataFrame()
 
 
 def fetch_paginated_data(
