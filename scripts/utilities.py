@@ -104,3 +104,64 @@ def expand_json_cols(df: pd.DataFrame, json_cols: list) -> pd.DataFrame:
             raise ValueError(f"Error expanding column {col}: {e}") from e
 
     return other_cols
+
+
+def load_and_process_csv(filepath, id_columns, rename_columns=None, fill_na_value=None):
+    """
+    Generic function to load and process CSV files.
+    Args:
+        filepath (str): The file path to the CSV file.
+        id_columns (list): Columns to be used to create the unique ID.
+        rename_columns (dict): Optional dictionary for renaming columns.
+        fill_na_value (any): Optional value to fill NaN values.
+    Returns:
+        pd.DataFrame: Processed DataFrame.
+    """
+    df = pd.read_csv(filepath)
+    df["race_id"] = df[id_columns[0]].astype(str) + "_" + df[id_columns[1]].astype(str)
+    if rename_columns:
+        df = df.rename(columns=rename_columns)
+    if fill_na_value is not None:
+        df = df.fillna(fill_na_value)
+    df = remove_unnamed_col(df)
+    return df
+
+
+def join_dataframes(df1, df2, join_key):
+    """Join two DataFrames on a specified key."""
+    return df1.merge(df2, how="left", on=join_key)
+
+
+def add_previous_year_results(df):
+    """
+    Adds previous year's average position for each driver to the DataFrame.
+
+    Parameters:
+    - df: pandas DataFrame containing race results information.
+
+    Returns:
+    - Modified DataFrame with an additional column for the previous year's average position.
+    """
+    # Create a copy of the DataFrame with the season incremented to match the next year's season
+    prev_year_info = df.copy()
+    prev_year_info["season"] += 1
+
+    # Group by driverId, circuitId, and season, then calculate the mean position
+    prev_year_avg_positions = (
+        prev_year_info.groupby(["driverId", "circuitId", "season"])["position"]
+        .mean()
+        .reset_index()
+    )
+
+    # Rename columns to match for merging
+    prev_year_avg_positions.rename(columns={"position": "prev_year_pos"}, inplace=True)
+
+    # Merge the modified DataFrame back to the original DataFrame
+    df = df.merge(
+        prev_year_avg_positions, on=["driverId", "circuitId", "season"], how="left"
+    )
+
+    # Fill NaN values with 0 for drivers without a previous year position
+    df["prev_year_pos"].fillna(0, inplace=True)
+
+    return df
