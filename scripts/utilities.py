@@ -71,7 +71,7 @@ def safe_literal_eval(val: str) -> dict:
     try:
         return literal_eval(val) if isinstance(val, str) else val
     except (ValueError, SyntaxError) as e:
-        logging.error(f"Error evaluating literal for value: {val} - {e}")
+        logging.error("Error evaluating literal for value: %s - %s", val, e)
         return {}
 
 

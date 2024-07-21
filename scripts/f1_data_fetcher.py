@@ -86,7 +86,8 @@ def parse_race_data(race: Dict) -> Dict:
         race (Dict): The dictionary containing race data.
 
     Returns:
-        Dict: Parsed race information including season, round, race name, date, time, circuit details, location, country, longitude, and latitude.
+        Dict: Parsed race information including season, round, race name, date,
+        time, circuit details, location, country, longitude, and latitude.
     """
     return {
         "season": race["season"],
@@ -178,7 +179,8 @@ async def fetch_race_results(
     start_year: int = 1995, end_year: int = CURRENT_YEAR, batch_size: int = 10
 ) -> pd.DataFrame:
     """
-    Fetch race data asynchronously for a range of years and rounds, combining the results into a single Pandas DataFrame.
+    Fetch race data asynchronously for a range of years and rounds, combining
+    the results into a single Pandas DataFrame.
 
     Args:
         start_year (int): The starting year for fetching race data. Defaults to 1995.

@@ -1,3 +1,5 @@
+import logging
+from tqdm import tqdm
 from config import WEATHER_API_KEY
 from scripts.utilities import format_race_data
 import requests
@@ -6,10 +8,13 @@ import pandas as pd
 import httpx
 import datetime
 
-
 BASE_URL = "https://api.weatherapi.com/v1/history.json"
 
-# === Weather API functions ===
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 def is_valid_date(date_str: str) -> bool:
     """
@@ -44,8 +49,7 @@ def construct_url(latitude: float, longitude: float, date: str) -> str:
         raise ValueError("Invalid date format. Please use the format 'YYYY-MM-DD'.")
 
     location = f"{latitude},{longitude}"
-    url = f"{BASE_URL}?key={WEATHER_API_KEY}&q={location}&dt={date}"
-    return url
+    return f"{BASE_URL}?key={WEATHER_API_KEY}&q={location}&dt={date}"
 
 
 def make_request(url: str) -> dict:
@@ -64,30 +68,54 @@ def make_request(url: str) -> dict:
             response.raise_for_status()  # Raise an exception for non-2xx status codes
             return response.json()
     except (httpx.HTTPError, httpx.TimeoutException, httpx.RequestError) as e:
-        print(f"Failed to fetch weather data: {e}")
-        return None
+        logging.error("Failed to fetch weather data: %s", e)
+        return {}
 
 
-# === Race weather request and processing functions ===
+def fetch_historic_weather() -> pd.DataFrame:
+    """
+    Fetches historic weather data for races and merges it with the race information.
+    Returns:
+        pd.DataFrame: The DataFrame containing race information with added weather data.
+    """
+    race_dfs = []  # list to store individual race DataFrames with weather data
 
-def fetch_historic_weather(url) -> dict:
-
-    race_dfs = [] # list to store individual race DataFrames with weather data
-
+    # Read and format the race data
     race_info_path = "data/raw/Race_Information_1995_2023.csv"
     race_df = format_race_data(pd.read_csv(race_info_path))
 
-    for _, row in race_df.iterrows():
-        date = row['date']
-        lat = row['lat']
-        long = row['long']
-        sys.stdout.write(f"\rFetching weather for date: {date}, location: ({lat},{long})")
-        sys.stdout.flush()
-        results_url = construct_url(lat, long, date)
-        response = requests.get(results_url, timeout=10)
-        if response.status_code == 200:
-            results_data = response.json()
-            raise NotImplementedError("This function is not yet implemented")
-            # TODO: save the results
-        else:
-            print(f"Failed to fetch data for {date}, location: ({lat},{long})")
+    # Loop through each race entry to fetch the weather data
+    for _, row in tqdm(
+        race_df.iterrows(), total=race_df.shape[0], desc="Fetching weather data"
+    ):
+        date = row["date"]
+        lat = row["lat"]
+        long = row["long"]
+
+        try:
+            # Construct the URL for the weather data request
+            results_url = construct_url(lat, long, date)
+            if weather_data := make_request(results_url):
+                forecast = weather_data.get("forecast", {}).get("forecastday", [])
+                if forecast and (weather_info := forecast[0].get("day", {})):
+                    weather_info.update({"date": date, "lat": lat, "long": long})
+                    race_dfs.append(weather_info)
+                else:
+                    logging.warning(
+                        "No weather information found for %s, location: (%s,%s)",
+                        date,
+                        lat,
+                        long,
+                    )
+            else:
+                logging.warning(
+                    "Failed to fetch data for %s, location: (%s,%s)", date, lat, long
+                )
+
+        except Exception as e:
+            logging.error("An error occurred: %s", e)
+
+    # Convert the list of weather data dictionaries to a DataFrame
+    weather_df = pd.DataFrame(race_dfs)
+
+    return race_df.merge(weather_df, on=["date", "lat", "long"], how="left")
