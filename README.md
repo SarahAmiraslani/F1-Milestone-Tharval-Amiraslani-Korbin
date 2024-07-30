@@ -30,22 +30,22 @@ The `scripts` directory contains functions that are used throughout the notebook
 
 ## Code
 
-The `scripts` directory contains functions that are used throughout the notebooks to load and transform data and to train and test the models. The `notebooks` directory is where you can find the data analysis and modeling used in this project. 
+The `scripts` directory contains functions that are used throughout the notebooks to load and transform data and to train and test the models. The `notebooks` directory is where you can find the data analysis and modeling used in this project.
 
 ## How to Use
 
 1. Clone the repository:
 
-    ```bash
+   ```bash
 
-    git clone https://github.com/yourusername/formula1-predictions-track-clustering.git
-    ```
+   git clone https://github.com/yourusername/formula1-predictions-track-clustering.git
+   ```
 
-2. Install the required packages. 
+2. Install the required packages.
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Contributors
 
